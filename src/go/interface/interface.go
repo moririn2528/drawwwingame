@@ -1,124 +1,161 @@
 package interf
 
-import "drawwwingame/usecase"
+import (
+	"drawwwingame/usecase"
+	"log"
+	"net/http"
 
-//database
-
-// type SqlHandler interface {
-// 	NamedExec(string, interface{}) (SqlRows, error)
-// 	NamedQuery(string, interface{}) (SqlResult, error)
-// 	Select(interface{}, string, ...interface{}) error
-// }
-
-// type SqlResult interface {
-// 	LastInsertId() (int64, error)
-// 	RowsAffected() (int64, error)
-// }
-
-// type SqlRows interface {
-// }
-
-// echo
-var (
-	MiddlewareLogger  EchoMiddlewareFunc
-	MiddlewareRecover EchoMiddlewareFunc
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
-type HttpResponseWriter interface {
+type User struct {
+	Username string `param:"username" query:"username" form:"username" json:"username"`
+	Password string `param:"password" query:"password" form:"password" json:"password"`
+	Email    string `param:"email" query:"email" form:"email" json:"email"`
+	Uuid     string `param:"uuid" query:"uuid" form:"uuid" json:"uuid"`
+	Tempid   string `param:"tempid" query:"tempid" form:"tempid" json:"tempid"`
+	GroupId  string `param:"group_id" query:"group_id" form:"group_id" json:"group_id"`
 }
 
-type HttpRequest interface {
+func connect2WebSocket(c echo.Context) error {
+	u := User{}
+	err := c.Bind(&u)
+	if err != nil {
+		log.Printf("Error: Bind, %v", err)
+		return c.String(http.StatusInternalServerError, "")
+	}
+	err = usecase.Connect2WebSocket(c, u.Uuid, u.Tempid)
+	if err != nil {
+		log.Printf("Error: ConnectWebSocket, %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	return c.NoContent(http.StatusOK)
 }
 
-type HttpHeader interface {
+func testPage(c echo.Context) error {
+	return c.String(http.StatusOK, "Hello")
 }
 
-type EchoResponse interface {
-	Writer() HttpResponseWriter
+func register(c echo.Context) error {
+	u := User{}
+	err := c.Bind(&u)
+	if err != nil {
+		log.Printf("Error: Bind, %v", err)
+		return c.String(http.StatusInternalServerError, "")
+	}
+	log.Println("username", u.Username)
+	log.Println("password", u.Password)
+	err = usecase.Register(u.Username, u.Password, u.Email)
+	if err != nil {
+		log.Printf("Error: register, %v", err)
+		return c.String(http.StatusInternalServerError, "")
+	}
+	c.Response().Header().Set(echo.HeaderAccessControlAllowOrigin, "*")
+	return c.String(http.StatusOK, "")
 }
 
-type EchoContextHandler interface {
-	Request() *HttpRequest
-	Response() *EchoResponse
+func login(c echo.Context) error {
+	u := User{}
+	err := c.Bind(&u)
+	if err != nil {
+		log.Printf("Error: Bind, %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	user, err := usecase.Login(u.Username, u.Password)
+	if err == usecase.ErrorNotEmailAuthorized {
+		return c.String(http.StatusUnauthorized, "not email authorized")
+	}
+	if err != nil {
+		log.Printf("Error: register, %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	return c.JSON(http.StatusOK, user)
 }
 
-type EchoHandlerFunc interface {
+// GET /auth/:str
+func authorize(c echo.Context) error {
+	str := c.Param("str")
+	log.Println(str)
+	user, err := usecase.Authorize(str)
+	if err != nil {
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	return c.JSON(http.StatusOK, user)
 }
 
-type EchoMiddlewareFunc interface {
+func testOptions(c echo.Context) error {
+	c.Response().Header().Set(echo.HeaderAccessControlAllowOrigin, "*")
+	c.Response().Header().Set(echo.HeaderAccessControlAllowMethods, "GET,POST,HEAD,OPTIONS")
+	c.Response().Header().Set(echo.HeaderAccessControlAllowHeaders, "Content-Type,Origin")
+	return c.NoContent(http.StatusOK)
 }
 
-type EchoRoute interface {
+func serverHeader(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		c.Response().Header().Set(echo.HeaderAccessControlAllowOrigin, "*")
+		return next(c)
+	}
 }
 
-type EchoHandler interface {
-	GET(string, EchoHandlerFunc, ...EchoMiddlewareFunc) EchoRoute
-	POST(string, EchoHandlerFunc, ...EchoMiddlewareFunc) EchoRoute
-	PUT(string, EchoHandlerFunc, ...EchoMiddlewareFunc) EchoRoute
-	DELETE(string, EchoHandlerFunc, ...EchoMiddlewareFunc) EchoRoute
-	Use(EchoMiddlewareFunc)
-	Start(string) error
-	LoggerFatal(...interface{})
+func getGroup(c echo.Context) error {
+	u := User{}
+	err := c.Bind(&u)
+	if err != nil {
+		log.Printf("Error: Bind, %v", err)
+		return c.String(http.StatusInternalServerError, "input format error")
+	}
+
+	return nil
 }
 
-//websocket
-type WebSocketHandler interface {
-	ReadJSON(interface{}) error
-	WriteJSON(interface{}) error
-	Close() error
+func setGroup(c echo.Context) error {
+	u := User{}
+	err := c.Bind(&u)
+	if err != nil {
+		log.Printf("Error: Bind, %v", err)
+		return c.String(http.StatusInternalServerError, "input format error")
+	}
+	err = usecase.SetGroup(u.Uuid, u.Tempid, u.GroupId)
+	if err != nil {
+		log.Printf("Error: setGroup, usecase.SetGroup, %v", err)
+
+	}
+	return c.String(http.StatusOK, "OK!")
 }
 
-type WebSocketUpgrader interface {
-	Upgrade(HttpResponseWriter, HttpRequest, HttpHeader) (WebSocketHandler, error)
+func Init() bool {
+	err := usecase.Init()
+	return err == nil
 }
 
-type WebSocket struct {
-	Socket WebSocketHandler
+func Close() {
+	usecase.Close()
 }
 
-type WebSocketCreate struct {
-	Upgrader WebSocketUpgrader
-}
+func Run() {
+	e := echo.New()
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+	e.Use(serverHeader)
 
-func NewWebSocket(upg WebSocketUpgrader, w HttpResponseWriter, r HttpRequest, head HttpHeader) (*WebSocket, error) {
-	var err error
-	sock := new(WebSocket)
-	sock.Socket, err = upg.Upgrade(w, r, head)
-	return sock, err
-}
+	flag := Init()
+	defer Close()
+	if !flag {
+		return
+	}
 
-func (sock *WebSocket) ReadJSON(v interface{}) error {
-	return sock.Socket.ReadJSON(v)
-}
+	e.OPTIONS("/login", testOptions)
+	e.OPTIONS("/register", testOptions)
+	e.OPTIONS("/group", testOptions)
 
-func (sock *WebSocket) WriteJSON(v interface{}) error {
-	return sock.Socket.WriteJSON(v)
-}
+	e.GET("/ws", connect2WebSocket)
+	e.GET("/testpage", testPage)
+	e.POST("/register", register)
+	e.POST("/login", login)
+	e.GET("/group", getGroup)
+	e.POST("/group", setGroup)
+	e.GET("/auth/:str", authorize)
 
-func (sock *WebSocket) Close() error {
-	return sock.Socket.Close()
-}
-
-func (cre *WebSocketCreate) Set(readBufferSize int, writeBufferSize int){
-	cre.Upgrader = 
-	
-}
-
-func (cre *WebSocketCreate) Create(e EchoContext, readBufferSize int, writeBufferSize int) (WebSocket, error){
-	cre.Upgrader.Upgrade(e)
-	func(r *HttpRequest) bool {
-		return true
-	})
-	
-}
-//main run
-func Run(e EchoHandler) {
-	e.Use(MiddlewareLogger)
-	e.Use(MiddlewareRecover)
-
-	e.GET("/ws", usecase.HandleConnection)
-	go usecase.HandleMessage()
-	e.GET("/testpage", usecase.TestPage)
-
-	e.LoggerFatal(e.Start(":1213"))
+	e.Logger.Fatal(e.Start(":1213"))
 }

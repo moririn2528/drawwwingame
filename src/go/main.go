@@ -1,15 +1,18 @@
 package main
 
 import (
+	"drawwwingame/domain"
 	infra "drawwwingame/infrastructure"
 	interf "drawwwingame/interface"
-
-	"github.com/labstack/echo/v4/middleware"
+	"log"
 )
 
 func main() {
-	e := infra.NewEchoHandler()
-	interf.MiddlewareLogger = middleware.Logger()
-	interf.MiddlewareRecover = middleware.Recover()
-	interf.Run(e)
+	var err error
+	domain.SqlHandle, err = infra.NewSqlHandler()
+	if err != nil {
+		log.Printf("Error: main, NewUserHandler, %v", err)
+		return
+	}
+	interf.Run()
 }
