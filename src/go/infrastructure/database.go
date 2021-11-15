@@ -55,7 +55,7 @@ func (handle *SqlHandler) GetUserById(input_uuid *domain.UuidInt, input_tempid *
 
 func (handle *SqlHandler) GetUser(input_name *domain.NameString, password *domain.PasswordString) (*domain.SqlUser, error) {
 	user := &domain.SqlUser{}
-	err := handle.db.Get(user, "SELECT uuid, tempid, name, email, expire_tempid_at, send_email_count, send_last_email_at, email_authorized "+
+	err := handle.db.Get(user, "SELECT uuid, tempid, name, email, expire_tempid_at, send_email_count, send_last_email_at, email_authorized, group_id "+
 		"FROM user WHERE name=? AND password=?",
 		input_name.ToString(), password.ToString(),
 	)
@@ -104,8 +104,8 @@ func (handle *SqlHandler) CreateUser(user *domain.User, password *domain.Passwor
 	if i != 3 {
 		return domain.NewError("rows over 3")
 	}
-	res, err := handle.db.NamedExec("INSERT INTO user(uuid,tempid,name,password,email,expire_tempid_at,send_email_count,send_last_email_at, email_authorized) "+
-		"VALUES (:uuid,:tempid,:name,:password,:email,:expire_tempid_at,:send_email_count,:send_last_email_at,:email_authorized)", map[string]interface{}{
+	res, err := handle.db.NamedExec("INSERT INTO user(uuid,tempid,name,password,email,expire_tempid_at,send_email_count,send_last_email_at, email_authorized, group_id) "+
+		"VALUES (:uuid,:tempid,:name,:password,:email,:expire_tempid_at,:send_email_count,:send_last_email_at,:email_authorized,:group_id)", map[string]interface{}{
 		"uuid":               user.GetUuidInt(),
 		"tempid":             user.GetTempidString(),
 		"name":               user.GetNameString(),
@@ -115,6 +115,7 @@ func (handle *SqlHandler) CreateUser(user *domain.User, password *domain.Passwor
 		"send_email_count":   user.GetSendEmailCount(),
 		"send_last_email_at": user.GetSendEmailLastDay(),
 		"email_authorized":   user.EmailAuthorized(),
+		"group_id":           user.GetGroupId(),
 	})
 	if err != nil {
 		domain.Log(err)
@@ -135,7 +136,7 @@ func (handle *SqlHandler) CreateUser(user *domain.User, password *domain.Passwor
 func (handle *SqlHandler) UpdateUser(user *domain.User) error {
 	res, err := handle.db.NamedExec("UPDATE user SET tempid=:tempid,name=:name,email=:email,"+
 		"expire_tempid_at=:expire_tempid_at,send_email_count=:send_email_count,send_last_email_at=:send_last_email_at,"+
-		"email_authorized=:email_authorized WHERE uuid=:uuid", map[string]interface{}{
+		"email_authorized=:email_authorized, group_id=:group_id WHERE uuid=:uuid", map[string]interface{}{
 		"uuid":               user.GetUuidInt(),
 		"tempid":             user.GetTempidString(),
 		"name":               user.GetNameString(),
@@ -144,6 +145,7 @@ func (handle *SqlHandler) UpdateUser(user *domain.User) error {
 		"send_email_count":   user.GetSendEmailCount(),
 		"send_last_email_at": user.GetSendEmailLastDay(),
 		"email_authorized":   user.EmailAuthorized(),
+		"group_id":           user.GetGroupId(),
 	})
 	if err != nil {
 		domain.Log(err)

@@ -1,5 +1,4 @@
 (function () {
-    const sock = new WebSocket("ws://localhost:1213/ws")
 
     chat_button.addEventListener("click",e=>{
         let message_box=document.getElementById("chat_send_message");
@@ -7,6 +6,7 @@
         if(message=="")return;
         sendWebSocket("text",message);
         message_box.value=""
+        addChatMessage(message)
     })
 }());
 

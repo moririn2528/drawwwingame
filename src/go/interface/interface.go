@@ -23,8 +23,9 @@ func connect2WebSocket(c echo.Context) error {
 	err := c.Bind(&u)
 	if err != nil {
 		log.Printf("Error: Bind, %v", err)
-		return c.String(http.StatusInternalServerError, "")
+		return c.NoContent(http.StatusInternalServerError)
 	}
+	log.Println(u)
 	err = usecase.Connect2WebSocket(c, u.Uuid, u.Tempid)
 	if err != nil {
 		log.Printf("Error: ConnectWebSocket, %v", err)
@@ -46,7 +47,7 @@ func register(c echo.Context) error {
 	}
 	log.Println("username", u.Username)
 	log.Println("password", u.Password)
-	err = usecase.Register(u.Username, u.Password, u.Email)
+	err = usecase.Register(u.Username, u.Email, u.Password)
 	if err != nil {
 		log.Printf("Error: register, %v", err)
 		return c.String(http.StatusInternalServerError, "")
@@ -77,11 +78,11 @@ func login(c echo.Context) error {
 func authorize(c echo.Context) error {
 	str := c.Param("str")
 	log.Println(str)
-	user, err := usecase.Authorize(str)
+	name, err := usecase.Authorize(str)
 	if err != nil {
 		return c.NoContent(http.StatusInternalServerError)
 	}
-	return c.JSON(http.StatusOK, user)
+	return c.String(http.StatusOK, "OK! Authorized. Thank you, "+name+".")
 }
 
 func testOptions(c echo.Context) error {

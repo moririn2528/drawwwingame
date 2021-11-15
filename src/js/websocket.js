@@ -5,6 +5,7 @@ function sendWebSocket(type,text){
         "uuid": sessionStorage.getItem("uuid"),
         "tempid": sessionStorage.getItem("tempid"),
         "username": sessionStorage.getItem("username"),
+        "group_id": sessionStorage.getItem("group_id"),
         "type": type,
         "message": text,
     }
@@ -12,10 +13,9 @@ function sendWebSocket(type,text){
 }
 
 (function () {
-    const sock = new WebSocket("ws://localhost:1213/ws")
-
     sock.addEventListener("open", e => {
         console.log("socket opened")
+        sendWebSocket("info","info");
     })
     sock.addEventListener("message", e => {
         const message_json = JSON.parse(e.data);

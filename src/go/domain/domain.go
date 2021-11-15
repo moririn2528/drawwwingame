@@ -88,6 +88,7 @@ type Message struct {
 	Uuid    string `json:"uuid"`
 	Tempid  string `json:"tempid"`
 	Name    string `json:"username"`
+	GroupId string `json:"group_id"`
 	Type    string `json:"type"`
 	Message string `json:"message"`
 }
@@ -224,16 +225,6 @@ func NewUser(uuid *UuidInt, tempid *TempIdValidString, name *NameString, email *
 	return user
 }
 
-func (user *User) GetMapString() map[string]string {
-	return map[string]string{
-		"uuid":     strconv.Itoa(user.uuid.ToInt()),
-		"tempid":   user.tempid.ToString(),
-		"username": user.name.ToString(),
-		"email":    user.email.EmailString(),
-		"group_id": strconv.Itoa(user.group.ToInt()),
-	}
-}
-
 func (user *User) GetUuidInt() int {
 	return user.uuid.ToInt()
 }
@@ -255,16 +246,17 @@ func (user *User) GetSendEmailCount() int {
 func (user *User) GetSendEmailLastDay() time.Time {
 	return user.email.GetLastDay()
 }
-func (user *User) GetGoupId() int {
+func (user *User) GetGroupId() int {
 	return user.group.ToInt()
 }
 
 func (user *User) ToMapString() map[string]string {
 	return map[string]string{
-		"uuid":   strconv.Itoa(user.uuid.ToInt()),
-		"tempid": user.tempid.ToString(),
-		"name":   user.name.ToString(),
-		"email":  user.email.EmailString(),
+		"uuid":     strconv.Itoa(user.uuid.ToInt()),
+		"tempid":   user.tempid.ToString(),
+		"username": user.name.ToString(),
+		"email":    user.email.EmailString(),
+		"group_id": strconv.Itoa(user.group.ToInt()),
 	}
 }
 
