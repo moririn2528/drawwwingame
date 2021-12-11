@@ -1,7 +1,8 @@
-package domain
+package valobj
 
 import (
 	"crypto/sha256"
+	"drawwwingame/domain/internal"
 	"encoding/hex"
 	"math/rand"
 	"net/smtp"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -16,38 +18,8 @@ const (
 	tempid_size              = 20
 	tempid_valid_hour        = 24
 	email_limit_send_par_day = 10
+	max_int                  = int(^uint(0) >> 1)
 )
-
-type AlphanumString struct {
-	str string
-}
-
-func NewAlphanumString(str string) (*AlphanumString, error) {
-	for _, r := range str {
-		if !unicode.IsLetter(r) && !unicode.IsNumber(r) {
-			Log(ErrorString)
-			return nil, ErrorString
-		}
-	}
-	s := new(AlphanumString)
-	s.str = str
-	return s, nil
-}
-
-func NewAlphanumStringRandom(length int) *AlphanumString {
-	s := new(AlphanumString)
-	runes := make([]byte, length)
-	for i := 0; i < length; i++ {
-		j := rand.Intn(len(alphanum_char))
-		runes[i] = alphanum_char[j]
-	}
-	s.str = string(runes)
-	return s
-}
-
-func (alp *AlphanumString) ToString() string {
-	return alp.str
-}
 
 type UuidInt struct {
 	num int
@@ -61,8 +33,8 @@ func NewUuidIntRandom() *UuidInt {
 
 func NewUuidInt(num int) (*UuidInt, error) {
 	if num < 0 {
-		Log(ErrorInt)
-		return nil, ErrorInt
+		internal.LogStringf("minus arg")
+		return nil, internal.ErrorArg
 	}
 	s := new(UuidInt)
 	s.num = num
@@ -72,13 +44,16 @@ func NewUuidInt(num int) (*UuidInt, error) {
 func NewUuidIntByString(str string) (*UuidInt, error) {
 	num, err := strconv.Atoi(str)
 	if err != nil {
-		return nil, ErrorArg
+		return nil, internal.ErrorArg
 	}
 	return NewUuidInt(num)
 }
 
 func (id *UuidInt) ToInt() int {
 	return id.num
+}
+func (id *UuidInt) Equal(id2 *UuidInt) bool {
+	return id.num == id2.num
 }
 
 type Datetime struct {
@@ -110,6 +85,47 @@ func (date *Datetime) Before(date2 *Datetime) bool {
 func (date *Datetime) After(date2 *Datetime) bool {
 	return date.Time.After(date2.Time)
 }
+func (date *Datetime) Equal(date2 *Datetime) bool {
+	return date.Time.Equal(date2.Time)
+}
+
+type NameString struct {
+	str string
+}
+
+func NewNameString(str string) (*NameString, error) {
+	if len(str) > 30 {
+		internal.LogStringf("length too large")
+		return nil, internal.ErrorArg
+	}
+	if !utf8.Valid([]byte(str)) {
+		internal.LogStringf("utf8 not validate")
+		return nil, internal.ErrorArg
+	}
+	for _, r := range str {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			continue
+		}
+		if unicode.In(r, unicode.Hiragana) || unicode.In(r, unicode.Katakana) || unicode.In(r, unicode.Han) {
+			continue
+		}
+		internal.LogStringf("rune not match")
+		return nil, internal.ErrorArg
+	}
+	s := new(NameString)
+	s.str = str
+	return s, nil
+}
+
+func NewNameStringNil() *NameString {
+	return &NameString{
+		str: "None",
+	}
+}
+
+func (pas *NameString) ToString() string {
+	return pas.str
+}
 
 type TempIdString struct {
 	*AlphanumString
@@ -127,8 +143,8 @@ func NewTempIdStringRandom() *TempIdString {
 
 func NewTempIdString(str string) (*TempIdString, error) {
 	if len(str) != tempid_size {
-		Log(ErrorString)
-		return nil, ErrorString
+		internal.LogStringf("error length")
+		return nil, internal.ErrorArg
 	}
 	s, err := NewAlphanumString(str)
 	if err != nil {
@@ -146,8 +162,8 @@ func NewTempIdValidStringRandom() *TempIdValidString {
 
 func NewTempIdValidString(str string, tim time.Time) (*TempIdValidString, error) {
 	if tim.Before(time.Now()) {
-		Log(ErrorExpired)
-		return nil, ErrorExpired
+		internal.LogStringf("error time is expired")
+		return nil, internal.ErrorExpired
 	}
 	tempid, err := NewTempIdString(str)
 	if err != nil {
@@ -175,13 +191,13 @@ func createHashPassword(password string) string {
 
 func NewPasswordString(str string) (*PasswordString, error) {
 	if len(str) < 6 || len(str) > 100 {
-		Log(ErrorString)
-		return nil, ErrorString
+		internal.LogStringf("length error")
+		return nil, internal.ErrorArg
 	}
 	for _, r := range str {
 		if !unicode.IsLetter(r) && !unicode.IsNumber(r) {
-			Log(ErrorString)
-			return nil, ErrorString
+			internal.LogStringf("error rune contain")
+			return nil, internal.ErrorArg
 		}
 	}
 	s := new(PasswordString)
@@ -285,20 +301,20 @@ func isEmailLocalString(str string) bool {
 
 func NewEmailString(str string) (*EmailString, error) {
 	if len(str) > 254 || strings.Count(str, "@") == 0 {
-		Log(ErrorString)
-		return nil, ErrorString
+		internal.LogStringf("error length")
+		return nil, internal.ErrorArg
 	}
 	index := strings.LastIndex(str, "@")
 	if len(str) <= index+1 {
-		Log(ErrorString)
-		return nil, ErrorString
+		internal.LogStringf("not contain @")
+		return nil, internal.ErrorArg
 	}
 	local := str[:index]
 	domain := str[index+1:]
 
 	if !isEmailLocalString(local) || !isDomainString(domain) {
-		Log(ErrorString)
-		return nil, ErrorString
+		internal.LogStringf("error email")
+		return nil, internal.ErrorArg
 	}
 	s := new(EmailString)
 	s.str = str
@@ -324,12 +340,12 @@ func NewSendingEmailCount() *SendingEmailCount {
 func NewSendingEmailCountnSet(count int, lastday time.Time) (*SendingEmailCount, error) {
 	s := new(SendingEmailCount)
 	if count < 0 || count > email_limit_send_par_day {
-		LogStringf("email count error")
-		return nil, ErrorArg
+		internal.LogStringf("email count error")
+		return nil, internal.ErrorArg
 	}
 	if lastday.After(time.Now()) {
-		LogStringf("sending email last day error")
-		return nil, ErrorArg
+		internal.LogStringf("sending email last day error")
+		return nil, internal.ErrorArg
 	}
 	s.count = count
 	s.lastDay = NewDatetime(lastday)
@@ -345,7 +361,8 @@ func (send *SendingEmailCount) canSendNow() bool {
 
 func (send *SendingEmailCount) IncrementCountNow() (*SendingEmailCount, error) {
 	if !send.canSendNow() {
-		return nil, NewError("sending count limit")
+		internal.LogStringf("sending count limit")
+		return nil, internal.ErrorSendingEmailLimit
 	}
 	if send.lastDay.IsToday() {
 		return &SendingEmailCount{
@@ -363,38 +380,6 @@ func (send *SendingEmailCount) GetCount() int {
 }
 func (send *SendingEmailCount) GetLastDay() time.Time {
 	return send.lastDay.Time
-}
-
-type Boolean struct {
-	b bool
-}
-
-func NewBoolean(b bool) *Boolean {
-	s := new(Boolean)
-	s.b = b
-	return s
-}
-
-func NewBooleanByByte(b []byte) *Boolean {
-	if len(b) == 0 {
-		return NewBoolean(false)
-	}
-	for _, bit := range b {
-		if bit != 0 {
-			return NewBoolean(true)
-		}
-	}
-	return NewBoolean(false)
-}
-
-func (b *Boolean) ToBool() bool {
-	return b.b
-}
-func (b *Boolean) ToInt() int {
-	if b.b {
-		return 1
-	}
-	return 0
 }
 
 type EmailObject struct {
@@ -424,8 +409,8 @@ func NewEmailObjectnSet(email *EmailString, count int, day time.Time, auth *Bool
 	s.email = email
 	s.count, err = NewSendingEmailCountnSet(count, day)
 	if err != nil {
-		Log(err)
-		return nil, ErrorArg
+		internal.Log(err)
+		return nil, internal.ErrorArg
 	}
 	s.authorized = auth
 	return s, nil
@@ -441,26 +426,30 @@ func (e *EmailObject) GetLastDay() time.Time {
 	return e.count.GetLastDay()
 }
 
+func (e *EmailObject) CanSendNow() bool {
+	return e.count.canSendNow()
+}
+
 func (e *EmailObject) SendEmail(subject, message string) (*EmailObject, error) {
 	auth := smtp.PlainAuth(
 		"",
-		GMAIL_ADDRESS,
-		GMAIL_PASSWORD,
+		internal.GMAIL_ADDRESS,
+		internal.GMAIL_PASSWORD,
 		"smtp.gmail.com",
 	)
 	to := e.EmailString()
 	if !e.count.canSendNow() {
-		return nil, ErrorSendingEmailLimit
+		return nil, internal.ErrorSendingEmailLimit
 	}
 	count, err := e.count.IncrementCountNow()
 	if err != nil {
-		Log(err)
-		return nil, ErrorInternal
+		internal.Log(err)
+		return nil, internal.ErrorInternal
 	}
 	err = smtp.SendMail(
 		"smtp.gmail.com:587",
 		auth,
-		GMAIL_ADDRESS,
+		internal.GMAIL_ADDRESS,
 		[]string{to},
 		[]byte("To: "+to+"\r\n"+
 			"Subject:"+subject+"\r\n"+
@@ -468,8 +457,8 @@ func (e *EmailObject) SendEmail(subject, message string) (*EmailObject, error) {
 			message),
 	)
 	if err != nil {
-		Log(err)
-		return nil, ErrorInternal
+		internal.Log(err)
+		return nil, internal.ErrorInternal
 	}
 	return NewEmailObjectAll(e.email, count, e.authorized), nil
 }
@@ -481,60 +470,93 @@ func (e *EmailObject) IsAuthorized() bool {
 	return e.authorized.ToBool()
 }
 
-type NameString struct {
-	str string
-}
-
-func NewNameString(str string) (*NameString, error) {
-	if len(str) > 30 {
-		Log(ErrorString)
-		return nil, ErrorString
-	}
-	for _, r := range str {
-		if unicode.IsLetter(r) || unicode.IsNumber(r) {
-			continue
-		}
-		if unicode.In(r, unicode.Hiragana) || unicode.In(r, unicode.Katakana) || unicode.In(r, unicode.Han) {
-			continue
-		}
-		Log(ErrorString)
-		return nil, ErrorString
-	}
-	s := new(NameString)
-	s.str = str
-	return s, nil
-}
-
-func (pas *NameString) ToString() string {
-	return pas.str
-}
-
 type GroupIdInt struct {
-	id int // -1: not set
+	id int
 }
 
 func NewGroupIdInt(id int) (*GroupIdInt, error) {
-	if id < -1 || GROUP_NUMBER <= id {
-		return nil, ErrorArg
+	if id < 0 || internal.GROUP_NUMBER <= id {
+		return nil, internal.ErrorArg
 	}
 	s := new(GroupIdInt)
 	s.id = id
 	return s, nil
 }
-func NewGroupIdIntNoSet() *GroupIdInt {
-	s := new(GroupIdInt)
-	s.id = -1
-	return s
-}
 
 func NewGroupIdIntByString(id_str string) (*GroupIdInt, error) {
 	id, err := strconv.Atoi(id_str)
 	if err != nil {
-		return nil, ErrorArg
+		return nil, internal.ErrorArg
 	}
 	return NewGroupIdInt(id)
 }
 
 func (g *GroupIdInt) ToInt() int {
 	return g.id
+}
+func (g *GroupIdInt) Equal(g2 *GroupIdInt) bool {
+	return g.id == g2.id
+}
+
+type GroupRole struct {
+	admin     *Boolean
+	canAnswer *Boolean
+	canWriter *Boolean
+}
+
+func NewGroupRole(admin, canAnswer, canWriter *Boolean) *GroupRole {
+	s := new(GroupRole)
+	s.admin = admin
+	s.canAnswer = canAnswer
+	s.canWriter = canWriter
+	return s
+}
+
+func NewGroupRoleByRow(admin, canAnswer, canWriter bool) *GroupRole {
+	return NewGroupRole(
+		NewBoolean(admin),
+		NewBoolean(canAnswer),
+		NewBoolean(canWriter),
+	)
+}
+
+func (role *GroupRole) IsAdmin() bool {
+	return role.admin.ToBool()
+}
+func (role *GroupRole) CanWriter() bool {
+	return role.canWriter.ToBool()
+}
+func (role *GroupRole) CanAnswer() bool {
+	return role.canAnswer.ToBool()
+}
+
+func NewGroupRoleNoSet() *GroupRole {
+	s := new(GroupRole)
+	s.admin = NewBoolean(false)
+	s.canAnswer = NewBoolean(true)
+	s.canWriter = NewBoolean(true)
+	return s
+}
+
+func (role *GroupRole) Update(admin, canAnswer, canWriter *Boolean) bool {
+	updated := false
+	if admin != nil && !role.admin.Equal(admin) {
+		role.admin = admin
+		updated = true
+	}
+	if canAnswer != nil && !role.canAnswer.Equal(canAnswer) {
+		role.canAnswer = canAnswer
+		updated = true
+	}
+	if canWriter != nil && !role.canWriter.Equal(canWriter) {
+		role.canWriter = canWriter
+		updated = true
+	}
+	return updated
+}
+
+func (role *GroupRole) Equal(r *GroupRole) bool {
+	return role.canAnswer.Equal(r.canAnswer) &&
+		role.canWriter.Equal(r.canWriter) &&
+		role.admin.Equal(r.admin)
 }

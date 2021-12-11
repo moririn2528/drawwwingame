@@ -1,6 +1,7 @@
-package domain
+package domain_test
 
 import (
+	"drawwwingame/domain"
 	"testing"
 )
 
@@ -17,8 +18,8 @@ func TestEncryptAndDecrypt(t *testing.T) {
 		"2rwetg",
 	}
 	for _, v := range patterns {
-		str, _ := Encrypt(v)
-		val, _ := Decrypt(str)
+		str, _ := domain.Encrypt(v)
+		val, _ := domain.Decrypt(str)
 		check(t, v, val, v)
 	}
 }

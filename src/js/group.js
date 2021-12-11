@@ -21,7 +21,7 @@
             "tempid": tempid,
             "group_id": group_id,
         })
-        window.location.href="../html/main.html"
+        window.location.href="../html/role.html"
     }
 
     select_button.addEventListener("click",e=>{

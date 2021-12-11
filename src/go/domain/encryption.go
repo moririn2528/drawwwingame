@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"drawwwingame/domain/valobj"
 	"encoding/hex"
 	"io"
 	"strings"
@@ -26,7 +27,7 @@ func Encrypt(str string) (string, error) { // not contain "~"
 	str += "~"
 	if len(str)%aes.BlockSize != 0 {
 		add_length := aes.BlockSize - len(str)%aes.BlockSize
-		str += NewAlphanumStringRandom(add_length).ToString()
+		str += valobj.NewAlphanumStringRandom(add_length).ToString()
 	}
 
 	block, err := aes.NewCipher(key)

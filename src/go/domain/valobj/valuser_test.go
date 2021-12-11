@@ -1,49 +1,13 @@
-package domain
+package valobj
 
 import (
-	"os"
+	"drawwwingame/domain/internal"
+	"math/rand"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
-
-func TestMain(m *testing.M) {
-	DEBUG_MODE = false
-	InitValTestLocal()
-	defer Close()
-	status := m.Run()
-	os.Exit(status)
-}
-
-func check(t *testing.T, arg, actual, expect interface{}) {
-	if expect != actual {
-		t.Errorf("\ninput: %v\noutput: %v\nexpect %v", arg, actual, expect)
-	}
-}
-
-func TestAlphanumString(t *testing.T) {
-	patterns := map[string]error{
-		"aaaaa":                                nil,
-		"1234567890poiuytrewqasdfghjklmnbvcxz": nil,
-		"2345QWERTYUIOPLKJHGFDSAZXCVBNM":       nil,
-		"!sdfgh":                               ErrorString,
-		"1,2.":                                 ErrorString,
-	}
-	for key, val := range patterns {
-		str, err := NewAlphanumString(key)
-		check(t, key, err, val)
-		if err == nil {
-			check(t, key, key, str.ToString())
-		}
-	}
-	lens := []int{1, 10, 123}
-	for _, l := range lens {
-		a := NewAlphanumStringRandom(l)
-		_, err := NewAlphanumString(a.ToString())
-		check(t, l, err, nil)
-	}
-}
 
 func TestUuidInt(t *testing.T) {
 	patterns := map[int]error{
@@ -51,8 +15,8 @@ func TestUuidInt(t *testing.T) {
 		0:       nil,
 		860503:  nil,
 		2528:    nil,
-		-1:      ErrorInt,
-		-123456: ErrorInt,
+		-1:      internal.ErrorArg,
+		-123456: internal.ErrorArg,
 	}
 	for key, val := range patterns {
 		uuid, err := NewUuidInt(key)
@@ -61,11 +25,10 @@ func TestUuidInt(t *testing.T) {
 			check(t, key, key, uuid.ToInt())
 		}
 	}
-	lens := []int{1, 10, 123}
-	for _, l := range lens {
+	for i := 0; i < 5; i++ {
 		a := NewUuidIntRandom()
 		_, err := NewUuidInt(a.ToInt())
-		check(t, l, err, nil)
+		check(t, i, err, nil)
 	}
 }
 
@@ -121,14 +84,37 @@ func TestDatetime(t *testing.T) {
 		tim.After(tim))
 }
 
+func TestNameString(t *testing.T) {
+	patterns := map[string]error{
+		"test":        nil,
+		"moririn2528": nil,
+		"te24わっふぁ":    nil,
+		"te24わっふぁｗ":   nil,
+		"te24わっふぁ　ｗ":  internal.ErrorArg,
+		"te24わっふぁ ｗ":  internal.ErrorArg,
+		"   ":         internal.ErrorArg,
+		"お手紙クレジット":    nil,
+		";--":         internal.ErrorArg,
+		"\\":          internal.ErrorArg,
+	}
+	for key, val := range patterns {
+		name, err := NewNameString(key)
+		check(t, key, err, val)
+		if err != nil {
+			continue
+		}
+		check(t, key, name.ToString(), key)
+	}
+}
+
 func TestTempidString(t *testing.T) {
 	patterns := map[string]error{
 		"1234567890POIUYTREWQ": nil,
 		"ASDFGHJKLMNBVCXZqwer": nil,
 		"tyuiopasdfghjklzxcvb": nil,
 		"bnmsdfgoh3434yinSDF2": nil,
-		"#Dbik2grvfbndthgfdsa": ErrorString,
-		"dffben3":              ErrorString,
+		"#Dbik2grvfbndthgfdsa": internal.ErrorArg,
+		"dffben3":              internal.ErrorArg,
 	}
 	for key, val := range patterns {
 		tempid, err := NewTempIdString(key)
@@ -145,7 +131,8 @@ func TestTempidString(t *testing.T) {
 
 	hours := map[int]error{
 		1: nil, 123: nil, 1000000: nil,
-		-1: ErrorExpired, -1234: ErrorExpired, -1000000: ErrorExpired}
+		-1: internal.ErrorExpired, -1234: internal.ErrorExpired,
+		-1000000: internal.ErrorExpired}
 	for key, val := range patterns {
 		if val != nil {
 			continue
@@ -170,14 +157,14 @@ func TestTempidString(t *testing.T) {
 
 func TestPasswordString(t *testing.T) {
 	patterns := map[string]error{
-		"aaaaa":                                ErrorString,
+		"aaaaa":                                internal.ErrorArg,
 		"aaaaaa":                               nil,
 		strings.Repeat("a", 100):               nil,
-		strings.Repeat("a", 101):               ErrorString,
+		strings.Repeat("a", 101):               internal.ErrorArg,
 		"asdfghjklqwertyuiopzxcvbnm":           nil,
 		"QWERTYUIOPASDFGHJKLMNBVCXZ0987654321": nil,
-		";--":                                  ErrorString,
-		";":                                    ErrorString,
+		";--":                                  internal.ErrorArg,
+		";":                                    internal.ErrorArg,
 		"1234sasdfdbf244t":                     nil,
 		"1234567654323":                        nil,
 		"ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb": nil,
@@ -244,10 +231,10 @@ func TestIsEmailLocalString(t *testing.T) {
 func TestNewEmailString(t *testing.T) {
 	patterns := map[string]error{
 		strings.Repeat("a", 50) + "@" + strings.Repeat("a", 203): nil,
-		strings.Repeat("a", 50) + "@" + strings.Repeat("a", 204): ErrorString,
+		strings.Repeat("a", 50) + "@" + strings.Repeat("a", 204): internal.ErrorArg,
 		"test1@gmail.com":    nil,
-		"test@test@test.com": ErrorString,
-		"testest.com":        ErrorString,
+		"test@test@test.com": internal.ErrorArg,
+		"testest.com":        internal.ErrorArg,
 	}
 	for key, val := range patterns {
 		a, err := NewEmailString(key)
@@ -262,9 +249,9 @@ func TestSendingEmailCount(t *testing.T) {
 	loc, _ := time.LoadLocation("Local")
 	patterns := map[[2]interface{}]error{
 		{email_limit_send_par_day, time.Date(2003, 1, 1, 1, 1, 1, 1, loc)}:     nil,
-		{email_limit_send_par_day + 2, time.Date(2003, 1, 1, 1, 1, 1, 1, loc)}: ErrorArg,
-		{-1, time.Date(2003, 1, 1, 1, 1, 1, 1, loc)}:                           ErrorArg,
-		{0, time.Now().Add(time.Hour * 100)}:                                   ErrorArg,
+		{email_limit_send_par_day + 2, time.Date(2003, 1, 1, 1, 1, 1, 1, loc)}: internal.ErrorArg,
+		{-1, time.Date(2003, 1, 1, 1, 1, 1, 1, loc)}:                           internal.ErrorArg,
+		{0, time.Now().Add(time.Hour * 100)}:                                   internal.ErrorArg,
 		{0, time.Now()}:                                                        nil,
 	}
 	for arg, val := range patterns {
@@ -288,47 +275,78 @@ func TestSendingEmailCount(t *testing.T) {
 	}
 }
 
-func TestBoolean(t *testing.T) {
-	patterns := map[string]bool{
-		string([]byte{0}): false,
-		"":                false,
-		"0":               true,
-		"000":             true,
-	}
-	for key, val := range patterns {
-		check(t, key, NewBooleanByByte([]byte(key)).ToBool(), val)
-	}
-}
-
-func TestEmailObject(t *testing.T) {
+func TestSendEmail(t *testing.T) {
 	var err error
-	DEBUG_MODE = true
-	e, _ := NewEmailString(TEST_GMAIL_ADDRESS)
+	e, _ := NewEmailString(internal.TEST_GMAIL_ADDRESS0)
 	email := NewEmailObject(e)
 	email, err = email.SendEmail("test", "test")
 	check(t, "test email send", err, nil)
+	check(t, "is authorized", email.IsAuthorized(), false)
 	email = email.Authorize()
 	check(t, "is authorized", email.IsAuthorized(), true)
 }
 
-func TestNameString(t *testing.T) {
-	patterns := map[string]error{
-		"test":        nil,
-		"moririn2528": nil,
-		"te24わっふぁ":    nil,
-		"te24わっふぁｗ":   nil,
-		"te24わっふぁ　ｗ":  ErrorString,
-		"te24わっふぁ ｗ":  ErrorString,
-		"   ":         ErrorString,
-		"お手紙クレジット":    nil,
-		";--":         ErrorString,
+func TestGroupIdInt(t *testing.T) {
+	pattern_int := map[int]error{
+		-1:                        internal.ErrorArg,
+		0:                         nil,
+		1:                         nil,
+		internal.GROUP_NUMBER - 1: nil,
+		internal.GROUP_NUMBER:     internal.ErrorArg,
 	}
-	for key, val := range patterns {
-		name, err := NewNameString(key)
+	for key, val := range pattern_int {
+		g, err := NewGroupIdInt(key)
 		check(t, key, err, val)
-		if err != nil {
-			continue
+		if err == nil {
+			check(t, key, g.ToInt(), key)
 		}
-		check(t, key, name.ToString(), key)
+		g, err = NewGroupIdIntByString(strconv.Itoa(key))
+		check(t, key, err, val)
+		if err == nil {
+			check(t, key, g.ToInt(), key)
+		}
+	}
+}
+
+func TestGroupRole(t *testing.T) {
+	const roles = 3
+	for i := 0; i < (1 << roles); i++ {
+		param := [roles]*Boolean{}
+		for j := 0; j < roles; j++ {
+			if i&(1<<j) > 0 {
+				param[j] = NewBoolean(true)
+			} else {
+				param[j] = NewBoolean(false)
+			}
+		}
+		g := NewGroupRole(param[0], param[1], param[2])
+		val := [roles]bool{g.IsAdmin(), g.CanAnswer(), g.CanWriter()}
+		for j := 0; j < roles; j++ {
+			check(t, strconv.Itoa(i)+","+strconv.Itoa(j),
+				param[j].ToBool(), val[j])
+		}
+	}
+	group := NewGroupRoleNoSet()
+	for i := 0; i < (1 << roles); i++ {
+		param := [roles]*Boolean{}
+		for j := 0; j < roles; j++ {
+			if i&(1<<j) > 0 {
+				param[j] = NewBoolean(rand.Int31n(2) == 0)
+			} else {
+				param[j] = nil
+			}
+		}
+		bef_val := [roles]bool{group.IsAdmin(), group.CanAnswer(), group.CanWriter()}
+		group = group.Update(param[0], param[1], param[2])
+		val := [roles]bool{group.IsAdmin(), group.CanAnswer(), group.CanWriter()}
+		for j := 0; j < roles; j++ {
+			if param[j] == nil {
+				check(t, "UPDATE "+strconv.Itoa(i)+","+strconv.Itoa(j)+", nil",
+					bef_val[j], val[j])
+			} else {
+				check(t, "UPDATE "+strconv.Itoa(i)+","+strconv.Itoa(j),
+					param[j].ToBool(), val[j])
+			}
+		}
 	}
 }

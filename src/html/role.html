@@ -1,0 +1,27 @@
+<html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta title="Drawwwingame">
+        <link rel="stylesheet" type="text/css" href="../css/role.css">
+    </head>
+    <body>
+        グループ
+        <div class="div_group_id"></div>
+        待機画面
+        <br><br>
+        <input type="checkbox" id="can_answer" value="true" checked="checked">回答者
+        <input type="checkbox" id="can_writer" value="true" checked="checked">出題者
+        
+        <input type="button" id="is_ready" value="準備完了">
+
+        <br><br>
+
+        参加者リスト<br>
+        <div id="stay_member"></div>
+        
+        <script src="../js/jquery-3.6.0.min.js"></script>
+        <script src="../js/http.js"></script>
+        <script src="../js/websocket.js"></script>
+        <script src="../js/role.js"></script>
+    </body>
+</html>

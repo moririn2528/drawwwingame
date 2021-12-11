@@ -2,9 +2,9 @@ package usecase
 
 import (
 	domain "drawwwingame/domain"
+	"drawwwingame/domain/valobj"
 	"errors"
 	"log"
-	"strconv"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -18,76 +18,91 @@ var (
 	ErrorInputUuid          = errors.New("input uuid error")
 	ErrorInputTempid        = errors.New("input temp id error")
 	ErrorInputGroupid       = errors.New("input group id error")
+	ErrorInputTypeString    = errors.New("input type string error")
+	ErrorInputMessageInfo   = errors.New("input message info error")
+	ErrorInputMessage       = errors.New("input message error")
 	ErrorSendingEmailLimit  = errors.New("sending email limit")
 	ErrorInternal           = errors.New("internal error")
 	ErrorNotEmailAuthorized = errors.New("email not authorized")
+	ErrorWebsocketInput     = errors.New("error input in websocket")
+	ErrorNoMatter           = domain.ErrorNoMatter
 )
 
-func getUser(uuid_str, tempid_str, name_str, email_str, password_str string) (*domain.User, error) {
+func userWrap(uuid_str, tempid_str, name_str, email_str, password_str string) (*valobj.UuidInt, *valobj.TempIdString, *valobj.NameString, *valobj.EmailString, *valobj.PasswordString, error) {
 	var err error
-	var uuid *domain.UuidInt
-	var tempid *domain.TempIdString
-	var name *domain.NameString
-	var email *domain.EmailString
-	var password *domain.PasswordString
-	var user *domain.User
+	var out_err error
+	var uuid *valobj.UuidInt
+	var tempid *valobj.TempIdString
+	var name *valobj.NameString
+	var email *valobj.EmailString
+	var password *valobj.PasswordString
 	if uuid_str != "" {
-		uuid, err = domain.NewUuidIntByString(uuid_str)
+		uuid, err = valobj.NewUuidIntByString(uuid_str)
 		if err != nil {
-			domain.Log(err)
-			return nil, err
+			domain.Log1(err)
+			out_err = err
 		}
 	}
 	if tempid_str != "" {
-		tempid, err = domain.NewTempIdString(tempid_str)
+		tempid, err = valobj.NewTempIdString(tempid_str)
 		if err != nil {
-			domain.Log(err)
-			return nil, err
+			domain.Log1(err)
+			out_err = err
 		}
 	}
 	if name_str != "" {
-		name, err = domain.NewNameString(name_str)
+		name, err = valobj.NewNameString(name_str)
 		if err != nil {
-			domain.Log(err)
-			return nil, err
+			domain.Log1(err)
+			out_err = err
 		}
 	}
 	if email_str != "" {
-		email, err = domain.NewEmailString(email_str)
+		email, err = valobj.NewEmailString(email_str)
 		if err != nil {
-			domain.Log(err)
-			return nil, err
+			domain.Log1(err)
+			out_err = err
 		}
 	}
 	if password_str != "" {
-		password, err = domain.NewPasswordString(password_str)
+		password, err = valobj.NewPasswordString(password_str)
 		if err != nil {
-			domain.Log(err)
-			return nil, err
+			domain.Log1(err)
+			out_err = err
 		}
 	}
+	return uuid, tempid, name, email, password, out_err
+}
 
+func getUser(uuid *valobj.UuidInt, tempid *valobj.TempIdString, name *valobj.NameString, email *valobj.EmailString, password *valobj.PasswordString, errs ...error) (*domain.User, error) {
+	var err error
+	var user *domain.User
+	for _, e := range errs {
+		if e != nil {
+			return nil, e
+		}
+	}
 	if uuid != nil && tempid != nil {
 		user, err = domain.NewUserById(uuid, tempid)
 		if err != nil {
-			domain.Log(err)
-			return nil, err
+			domain.Log1(err)
+			return nil, ErrorInternal
 		}
 		return user, nil
 	}
 	if name != nil && email != nil && password != nil {
 		user, err = domain.NewUsernCreate(name, email, password)
 		if err != nil {
-			domain.Log(err)
-			return nil, err
+			domain.Log1(err)
+			return nil, ErrorInternal
 		}
 		return user, nil
 	}
 	if name != nil && password != nil {
 		user, err = domain.NewUserByNamePassword(name, password)
 		if err != nil {
-			domain.Log(err)
-			return nil, err
+			domain.Log1(err)
+			return nil, ErrorInternal
 		}
 		return user, nil
 	}
@@ -95,42 +110,153 @@ func getUser(uuid_str, tempid_str, name_str, email_str, password_str string) (*d
 	return nil, ErrorInternal
 }
 
+func getUserByRow(uuid_str, tempid_str, name_str, email_str, password_str string) (*domain.User, error) {
+	return getUser(
+		userWrap(uuid_str, tempid_str, name_str, email_str, password_str),
+	)
+}
+
 func readWebSocket(ws *websocket.Conn) error {
-	defer ws.Close()
+	defer domain.DeleteConnectionByConn(ws)
 
 	for {
 		select {
 		case <-domain.Goroutine_cancel:
 			return nil
 		default:
-			var msg domain.Message
-			err := ws.ReadJSON(&msg)
+			msg, err := domain.NewInputWebSocketMessage(ws)
+			if err == domain.ErrorNoMatter {
+				return ErrorNoMatter
+			}
 			if err != nil {
-				delete(domain.Clients, ws)
-				log.Printf("Error: domain, readWebSocket, ReadJSON, %v", err)
+				domain.Log1(err)
+				return ErrorInternal
+			}
+			user, err := msg.GetUser()
+			if err != nil {
+				domain.Log1(err)
 				return err
 			}
-			user, err := getUser(msg.Uuid, msg.Tempid, msg.Name, "", "")
+			t, err := msg.GetType()
 			if err != nil {
-				domain.Log(err)
-				return err
+				domain.Log1(err)
+				return ErrorInputTypeString
 			}
-			if msg.Type == "info" {
-				domain.Clients[ws] = user
+			group, err := msg.GetnSetGroupObject()
+			if err != nil {
+				domain.Log1(err)
+				return ErrorInputTypeString
+			}
+			if t.IsInfo() {
+				// not broadcast
+				if msg.Message == "uuid" {
+					domain.Clients.Append(ws, user, group)
+					if group.InGame() {
+						err = group.SendGameInfoBefore()
+						if err != nil {
+							domain.Log1(err)
+							return ErrorInternal
+						}
+					}
+					continue
+				}
+
+				// broadcast
+				msg_obj, err := msg.ToMessageObject()
+				if err != nil {
+					domain.Log1(err)
+					return ErrorWebsocketInput
+				}
+				out_msg, err := msg_obj.ToOutputWebsocket()
+				if err != nil {
+					domain.Log1(err)
+					return ErrorWebsocketInput
+				}
+
+				group, ok := domain.Clients.GetGroupByConn(ws)
+				if !ok {
+					domain.LogStringf("GetGroupByConn error")
+					return ErrorInternal
+				}
+				switch msg.Message {
+				case "join":
+					domain.Broadcast <- out_msg
+					group.AppendWaitingRoom()
+					err = group.SendWaitingRoomInfoBefore()
+					if err != nil {
+						domain.Log1(err)
+						return ErrorInternal
+					}
+
+				case "ready":
+					domain.Broadcast <- out_msg
+					err = group.UpdateReady(valobj.NewBoolean(true))
+					if err != nil {
+						domain.Log1(err)
+						return ErrorInternal
+					}
+					ok = group.GroupIsReady()
+					if !ok {
+						break
+					}
+					err = group.StartGame(5, 1, 1)
+					if err != nil {
+						domain.Log(err)
+						return ErrorInternal
+					}
+
+				default:
+					domain.LogStringf("assert false")
+					return ErrorWebsocketInput
+				}
 				continue
 			}
-			domain.Broadcast <- msg
+			if t.IsMark() {
+				mark, err := msg.ToMessageMark()
+				if err != nil {
+					domain.Log1(err)
+					return ErrorWebsocketInput
+				}
+				err = mark.SaveSql()
+				if err != nil {
+					domain.Log1(err)
+					return ErrorInternal
+				}
+				err = mark.Setting()
+				if err != nil {
+					domain.Log1(err)
+					return ErrorInternal
+				}
+				out_msg, err := mark.ToOutputWebsocket()
+				if err != nil {
+					log.Println(err)
+					return ErrorInternal
+				}
+				domain.Broadcast <- out_msg
+				continue
+			}
+			message, err := msg.ToMessageObject()
+			if err != nil {
+				log.Println(err)
+				return ErrorWebsocketInput
+			}
+			message.SaveSql()
+			out_msg, err := message.ToOutputWebsocket()
+			if err != nil {
+				domain.Log1(err)
+				return ErrorInternal
+			}
+			domain.Broadcast <- out_msg
 		}
 	}
 }
 
-func Connect2WebSocket(c echo.Context, uuid_str, tempid_str string) error {
+func Connect2WebSocket(c echo.Context) error {
 	ws, err := domain.ConnectWebSocket(c)
 	if err != nil {
 		domain.Log(err)
 		return ErrorInternal
 	}
-	domain.Clients[ws] = nil
 	go readWebSocket(ws)
 	return err
 }
@@ -142,33 +268,20 @@ func sendWebSocketMesage() error {
 			return nil
 		default:
 			msg := <-domain.Broadcast
-			for client, user := range domain.Clients {
-				if user == nil {
-					continue
-				}
-				if strconv.Itoa(user.GetUuidInt()) == msg.Uuid {
-					continue
-				}
-				if msg.GroupId == "-1" || strconv.Itoa(user.GetGroupId()) != msg.GroupId {
-					continue
-				}
-				err := client.WriteJSON(msg)
-				if err != nil {
-					log.Printf("error: %v", err)
-					client.Close()
-					delete(domain.Clients, client)
-				}
+			err := msg.Send()
+			if err != nil {
+				log.Println(err)
 			}
 		}
 	}
 }
 
 func Register(input_username, input_email, input_password string) error {
-	user, err := getUser("", "", input_username, input_email, input_password)
+	user, err := getUserByRow("", "", input_username, input_email, input_password)
 	if err != nil {
 		return err
 	}
-	_, err = user.SendAuthorizeEmail("auth")
+	err = user.SendAuthorizeEmail("auth")
 	domain.ErrorIsEach(err,
 		domain.ErrorUnnecessary,
 		domain.ErrorSendingEmailLimit,
@@ -193,7 +306,7 @@ func Authorize(crypto_str string) (string, error) {
 
 func Login(input_username, input_password string) (map[string]string, error) {
 	s := make(map[string]string)
-	user, err := getUser("", "", input_username, "", input_password)
+	user, err := getUserByRow("", "", input_username, "", input_password)
 	if err != nil {
 		return s, err
 	}
@@ -208,18 +321,50 @@ func GetGroup(e echo.Context) map[string]string {
 	return nil
 }
 
-func SetGroup(uuid_str, tempid_str, group_id_str string) error {
-	group_id, err := domain.NewGroupIdIntByString(group_id_str)
+func SetGroup(uuid_str, tempid_str, group_str string) error {
+	uuid, tempid, _, _, _, err := userWrap(uuid_str, tempid_str, "", "", "")
 	if err != nil {
-		return ErrorInputGroupid
+		log.Println("userWrap", err)
+		return err
 	}
-	user, err := getUser(uuid_str, tempid_str, "", "", "")
+	_, err = getUser(uuid, tempid, nil, nil, nil)
 	if err != nil {
+		log.Println("getUser", err)
 		return ErrorInternal
 	}
-	_, err = user.UpdateExceptId(nil, nil, group_id)
+	group_id, err := valobj.NewGroupIdIntByString(group_str)
 	if err != nil {
-		domain.Log(err)
+		log.Println("valobj.NewGroupIdIntByString", err)
+		return ErrorInputGroupid
+	}
+	_, err = domain.NewGetnSetGroupObjectById(uuid, group_id)
+	if err != nil {
+		log.Println("domain.NewGetnSetGroupObjectById", err)
+		return ErrorInputGroupid
+	}
+	return nil
+}
+
+func SetGroupRole(uuid_str, tempid_str string, can_answer_bool, can_writer_bool bool) error {
+	uuid, tempid, _, _, _, err := userWrap(uuid_str, tempid_str, "", "", "")
+	if err != nil {
+		return err
+	}
+	_, err = getUser(uuid, tempid, nil, nil, nil)
+	if err != nil {
+		log.Println(err)
+		return ErrorInternal
+	}
+	group, err := domain.NewExistGroupObjectById(uuid)
+	if err != nil {
+		log.Println(err)
+		return ErrorInternal
+	}
+	can_answer := valobj.NewBoolean(can_answer_bool)
+	can_writer := valobj.NewBoolean(can_writer_bool)
+	err = group.UpdateRole(nil, can_answer, can_writer)
+	if err != nil {
+		log.Println(err)
 		return ErrorInternal
 	}
 	return nil
@@ -228,6 +373,7 @@ func SetGroup(uuid_str, tempid_str, group_id_str string) error {
 func Init() error {
 	err := domain.Init()
 	if err != nil {
+		log.Println(err)
 		return ErrorInternal
 	}
 	go sendWebSocketMesage()

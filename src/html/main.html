@@ -7,9 +7,23 @@
     <body>
         <div class="split">
             <div class="split_left">
-                <div class="chat_screen" id="chat_screen">
-                    <div class="chat_message">test</div>
-                    test
+                役割: <span id="my_role"></span><br>
+                ターン: <span id="turn_times"></span><br>
+                残り時間: <span id="time_left"></span><br>
+                <div id="theme"></div>
+                <div class="chat_tab_group">
+                    <div class="chat_tab is_active">回答スペース</div>
+                    <div class="chat_tab">書き手専用</div>
+                </div>
+                <div class="chat_screen_group">
+                    <div class="chat_screen is_active">
+                        <div id="chat_sent_message_answer"></div>
+                        <div id="chat_sending_message_answer"></div>
+                    </div>
+                    <div class="chat_screen">
+                        <div id="chat_sent_message_writer"></div>
+                        <div id="chat_sending_message_writer"></div>
+                    </div>
                 </div>
                 <div class="chat_send">
                     <textarea class="chat_send_message" id="chat_send_message"></textarea>
@@ -19,14 +33,25 @@
             <div class="split_right">
                 <div class="canvas_box">
                     <canvas id="canv" width="700" height="400"></canvas>
+                    <br>
+                    <div class="row">
+                        色を選択 <input type="color" id="canv_color" value="#000000">
+                        太さ <input type="range" id="canv_brush_size" min="1" max="10" value="3">
+                        <div id="canvas_brush_eraser"></div>
+                    </div>
+                    <div id="canvas_clear">全消去</div>
                 </div>
             </div>
         </div>
-        <buttton id="test">test</buttton>
-
-
+        
+        <script src="../js/jquery-3.6.0.min.js"></script>
+        <script src="../js/game.js"></script>
         <script src="../js/websocket.js"></script>
         <script src="../js/canvas.js"></script>
         <script src="../js/chat.js"></script>
     </body>
 </html>
+
+<!--
+    used id: chat_message_percentage_*
+-->

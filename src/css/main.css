@@ -14,6 +14,19 @@
     position: relative;
 }
 
+.chat_tab_group{
+    display: flex;
+    justify-content: center;
+}
+.chat_tab{
+    padding: 5px;
+    border: solid 1px;
+    text-align: center;
+    cursor: pointer;
+}
+.chat_tab.is_active{
+    background: rgb(226, 243, 224);
+}
 .chat_screen {
     overflow: auto;
     height:100%;
@@ -21,9 +34,22 @@
     border-left: 1px solid #ddd;
     background-color: #eee;
     box-shadow: 0px 2px 2px 0px rgba(0,0,0,0.2) inset;
+    display: none;
 }
-
+.chat_screen.is_active{
+    display: block;
+}
 .chat_message {
+    display: flex;
+}
+.chat_message_text {
+    width: calc(100% - 60px);
+}
+.chat_message_username{
+    font-size: 10px;
+    color: rgb(1, 41, 0);
+}
+.chat_message_content_text {
     margin: 0px;
     font-size: 16px;
     word-wrap: break-word;
@@ -65,4 +91,79 @@
     border: 1px solid #bbb;
     border-radius: 4px;
     box-sizing: border-box;
+}
+.chat_message_marks_and_percentage{
+    float: right;
+    width: 55px;
+    height: 24px;
+    margin: auto auto 0px;
+}
+.chat_message_marks{
+    display: flex;
+    width: 55px;
+    height: 18px;
+}
+.chat_message_mark{
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background-size: contain;
+    border: solid;
+    border-width: 1px;
+    margin-left: 1px;
+}
+.chat_message_mark_border{
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+}
+.chat_message_mark_A{
+    background-image: url("../../figure/correct.png");
+}
+.chat_message_mark_B{
+    background-image: url("../../figure/near_correct.png");
+}
+.chat_message_mark_C{
+    background-image: url("../../figure/incorrect.png");
+}
+.chat_message_mark_percentage{
+    width: 50px;
+    height: 5px;
+    background-color: white;
+    display: flex;
+    margin: auto;
+}
+.chat_message_mark_percentage_in{
+    width: 0px;
+    height: 5px;
+}
+.chat_message_mark_percentage_A{
+    background-color: green;
+}
+.chat_message_mark_percentage_B{
+    background-color: gold;
+}
+.chat_message_mark_percentage_C{
+    background-color: red;
+}
+
+#canvas_brush_eraser{
+    width: 20px;
+    height: 20px;
+    background-size: contain;
+    background-image: url("../../figure/eraser.png");
+    border:solid 1px;
+}
+#canvas_clear{
+    width: 72px;
+    height: 25px;
+    font-size: 16px;
+    text-align: center;
+    border: 1px solid;
+    border-radius: 3px;
+    box-sizing: border-box;
+}
+.row{
+    display: flex;
+    gap: 5px 5px;
 }
